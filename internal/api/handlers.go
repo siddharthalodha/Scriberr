@@ -2801,13 +2801,17 @@ func (h *Handler) SetUserDefaultProfile(c *gin.Context) {
 
 // UserSettingsResponse represents the user's settings
 type UserSettingsResponse struct {
-	AutoTranscriptionEnabled bool    `json:"auto_transcription_enabled"`
-	DefaultProfileID         *string `json:"default_profile_id,omitempty"`
+	AutoTranscriptionEnabled  bool    `json:"auto_transcription_enabled"`
+	DefaultProfileID          *string `json:"default_profile_id,omitempty"`
+	AutoWatchUploadDirEnabled bool    `json:"auto_watch_upload_dir_enabled"`
+	AutoWatchIntervalSeconds  int     `json:"auto_watch_interval_seconds"`
 }
 
 // UpdateUserSettingsRequest represents the request to update user settings
 type UpdateUserSettingsRequest struct {
-	AutoTranscriptionEnabled *bool `json:"auto_transcription_enabled,omitempty"`
+	AutoTranscriptionEnabled  *bool `json:"auto_transcription_enabled,omitempty"`
+	AutoWatchUploadDirEnabled *bool `json:"auto_watch_upload_dir_enabled,omitempty"`
+	AutoWatchIntervalSeconds  *int  `json:"auto_watch_interval_seconds,omitempty"`
 }
 
 // @Summary Get user settings
@@ -2832,9 +2836,16 @@ func (h *Handler) GetUserSettings(c *gin.Context) {
 		return
 	}
 
+	watchInterval := user.AutoWatchIntervalSeconds
+	if watchInterval <= 0 {
+		watchInterval = 30
+	}
+
 	response := UserSettingsResponse{
-		AutoTranscriptionEnabled: user.AutoTranscriptionEnabled,
-		DefaultProfileID:         user.DefaultProfileID,
+		AutoTranscriptionEnabled:  user.AutoTranscriptionEnabled,
+		DefaultProfileID:          user.DefaultProfileID,
+		AutoWatchUploadDirEnabled: user.AutoWatchUploadDirEnabled,
+		AutoWatchIntervalSeconds:  watchInterval,
 	}
 
 	c.JSON(http.StatusOK, response)
@@ -2875,6 +2886,19 @@ func (h *Handler) UpdateUserSettings(c *gin.Context) {
 	if req.AutoTranscriptionEnabled != nil {
 		user.AutoTranscriptionEnabled = *req.AutoTranscriptionEnabled
 	}
+	if req.AutoWatchUploadDirEnabled != nil {
+		user.AutoWatchUploadDirEnabled = *req.AutoWatchUploadDirEnabled
+	}
+	if req.AutoWatchIntervalSeconds != nil {
+		interval := *req.AutoWatchIntervalSeconds
+		if interval < 5 {
+			interval = 5
+		}
+		if interval > 3600 {
+			interval = 3600
+		}
+		user.AutoWatchIntervalSeconds = interval
+	}
 
 	// Save updated user
 	if err := h.userRepo.Update(c.Request.Context(), user); err != nil {
@@ -2882,9 +2906,16 @@ func (h *Handler) UpdateUserSettings(c *gin.Context) {
 		return
 	}
 
+	watchInterval := user.AutoWatchIntervalSeconds
+	if watchInterval <= 0 {
+		watchInterval = 30
+	}
+
 	response := UserSettingsResponse{
-		AutoTranscriptionEnabled: user.AutoTranscriptionEnabled,
-		DefaultProfileID:         user.DefaultProfileID,
+		AutoTranscriptionEnabled:  user.AutoTranscriptionEnabled,
+		DefaultProfileID:          user.DefaultProfileID,
+		AutoWatchUploadDirEnabled: user.AutoWatchUploadDirEnabled,
+		AutoWatchIntervalSeconds:  watchInterval,
 	}
 
 	c.JSON(http.StatusOK, response)

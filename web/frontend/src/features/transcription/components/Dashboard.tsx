@@ -1,11 +1,11 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { Header } from "@/components/Header";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { AudioFilesTable } from "./AudioFilesTable";
 import { DragDropOverlay } from "@/components/DragDropOverlay";
 import { Progress } from "@/components/ui/progress";
 import { Button } from "@/components/ui/button";
-import { X, CheckCircle, AlertCircle } from "lucide-react";
+import { X, CheckCircle, AlertCircle, FolderSearch } from "lucide-react";
 import {
 	groupFiles,
 	convertToFileWithType,
@@ -15,6 +15,12 @@ import {
 	validateMultiTrackFiles
 } from "@/utils/fileProcessor";
 import { useGlobalUpload } from "@/contexts/GlobalUploadContext";
+import { useAuth } from "@/features/auth/hooks/useAuth";
+
+interface WatcherSettings {
+	auto_watch_upload_dir_enabled: boolean;
+	auto_watch_interval_seconds: number;
+}
 
 export function Dashboard() {
 	// Get upload functionality from global context
@@ -24,6 +30,26 @@ export function Dashboard() {
 		isUploading,
 		uploadProgress,
 	} = useGlobalUpload();
+	const { getAuthHeaders } = useAuth();
+
+	const [watcherSettings, setWatcherSettings] = useState<WatcherSettings | null>(null);
+
+	const loadWatcherSettings = useCallback(async () => {
+		try {
+			const res = await fetch("/api/v1/user/settings", { headers: getAuthHeaders() });
+			if (res.ok) {
+				const data = await res.json();
+				setWatcherSettings({
+					auto_watch_upload_dir_enabled: data.auto_watch_upload_dir_enabled,
+					auto_watch_interval_seconds: data.auto_watch_interval_seconds,
+				});
+			}
+		} catch {
+			// silently ignore
+		}
+	}, [getAuthHeaders]);
+
+	useEffect(() => { loadWatcherSettings(); }, [loadWatcherSettings]);
 
 	// Drag and drop state (dashboard-specific UI)
 	const [isDragging, setIsDragging] = useState(false);
@@ -203,10 +229,29 @@ export function Dashboard() {
 				</div>
 			)}
 
+			{watcherSettings && (
+				<div className="mb-4 flex items-center gap-2">
+					<span
+						className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium border ${
+							watcherSettings.auto_watch_upload_dir_enabled
+								? "border-[var(--success-solid)]/30 bg-[var(--success-translucent)] text-[var(--success-solid)]"
+								: "border-[var(--border-subtle)] bg-[var(--bg-card)] text-[var(--text-tertiary)]"
+						}`}
+					>
+						<FolderSearch className="h-3.5 w-3.5" />
+						Folder monitor: {watcherSettings.auto_watch_upload_dir_enabled ? "On" : "Off"}
+						{watcherSettings.auto_watch_upload_dir_enabled && (
+							<span className="opacity-75">
+								(every {watcherSettings.auto_watch_interval_seconds}s)
+							</span>
+						)}
+					</span>
+				</div>
+			)}
+
 			<AudioFilesTable
 				onTranscribe={handleTranscribe}
 			/>
-
 
 			{/* Drag and Drop Overlay */}
 			<DragDropOverlay

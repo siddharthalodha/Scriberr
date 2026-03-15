@@ -14,6 +14,7 @@ type UserRepository interface {
 	FindByUsername(ctx context.Context, username string) (*models.User, error)
 	Count(ctx context.Context) (int64, error)
 	CountWithAutoTranscription(ctx context.Context) (int64, error)
+	FindFirstWithAutoWatch(ctx context.Context) (*models.User, error)
 }
 
 type userRepository struct {
@@ -47,6 +48,18 @@ func (r *userRepository) CountWithAutoTranscription(ctx context.Context) (int64,
 	return count, err
 }
 
+func (r *userRepository) FindFirstWithAutoWatch(ctx context.Context) (*models.User, error) {
+	var user models.User
+	err := r.db.WithContext(ctx).
+		Where("auto_watch_upload_dir_enabled = ?", true).
+		Order("id ASC").
+		First(&user).Error
+	if err != nil {
+		return nil, err
+	}
+	return &user, nil
+}
+
 // JobRepository handles transcription job operations
 type JobRepository interface {
 	Repository[models.TranscriptionJob]
@@ -65,6 +78,7 @@ type JobRepository interface {
 	FindByStatus(ctx context.Context, status models.JobStatus) ([]models.TranscriptionJob, error)
 	CountByStatus(ctx context.Context, status models.JobStatus) (int64, error)
 	UpdateSummary(ctx context.Context, jobID string, summary string) error
+	ExistsByAudioPath(ctx context.Context, audioPath string) (bool, error)
 }
 
 type jobRepository struct {
@@ -207,6 +221,15 @@ func (r *jobRepository) CountByStatus(ctx context.Context, status models.JobStat
 
 func (r *jobRepository) UpdateSummary(ctx context.Context, jobID string, summary string) error {
 	return r.db.WithContext(ctx).Model(&models.TranscriptionJob{}).Where("id = ?", jobID).Update("summary", summary).Error
+}
+
+func (r *jobRepository) ExistsByAudioPath(ctx context.Context, audioPath string) (bool, error) {
+	var count int64
+	err := r.db.WithContext(ctx).Model(&models.TranscriptionJob{}).Where("audio_path = ?", audioPath).Count(&count).Error
+	if err != nil {
+		return false, err
+	}
+	return count > 0, nil
 }
 
 // APIKeyRepository handles API key operations

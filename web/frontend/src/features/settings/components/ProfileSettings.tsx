@@ -6,7 +6,8 @@ import { ProfilesTable } from "./ProfilesTable";
 import { TranscriptionConfigDialog, type WhisperXParams } from "@/components/TranscriptionConfigDialog";
 import { useAuth } from "@/features/auth/hooks/useAuth";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Settings } from "lucide-react";
+import { Settings, FolderSearch } from "lucide-react";
+import { Input } from "@/components/ui/input";
 
 interface TranscriptionProfile {
 	id: string;
@@ -21,6 +22,8 @@ interface TranscriptionProfile {
 interface UserSettings {
 	auto_transcription_enabled: boolean;
 	default_profile_id?: string;
+	auto_watch_upload_dir_enabled: boolean;
+	auto_watch_interval_seconds: number;
 }
 
 export function ProfileSettings() {
@@ -157,6 +160,53 @@ export function ProfileSettings() {
 		}
 	};
 
+	const handleAutoWatchToggle = async (enabled: boolean) => {
+		setError("");
+		setSuccess("");
+		try {
+			const response = await fetch("/api/v1/user/settings", {
+				method: "PUT",
+				headers: { "Content-Type": "application/json", ...getAuthHeaders() },
+				body: JSON.stringify({ auto_watch_upload_dir_enabled: enabled }),
+			});
+			if (response.ok) {
+				const updated = await response.json();
+				setUserSettings(updated);
+				setSuccess(`Data folder monitoring ${enabled ? "enabled" : "disabled"} successfully!`);
+			} else {
+				const errorData = await response.json();
+				setError(errorData.error || "Failed to update setting");
+			}
+		} catch (err) {
+			console.error("Error updating auto-watch setting:", err);
+			setError("Network error. Please try again.");
+		}
+	};
+
+	const handleWatchIntervalChange = async (seconds: number) => {
+		if (seconds < 5 || seconds > 3600 || Number.isNaN(seconds)) return;
+		setError("");
+		setSuccess("");
+		try {
+			const response = await fetch("/api/v1/user/settings", {
+				method: "PUT",
+				headers: { "Content-Type": "application/json", ...getAuthHeaders() },
+				body: JSON.stringify({ auto_watch_interval_seconds: seconds }),
+			});
+			if (response.ok) {
+				const updated = await response.json();
+				setUserSettings(updated);
+				setSuccess("Check frequency updated!");
+			} else {
+				const errorData = await response.json();
+				setError(errorData.error || "Failed to update setting");
+			}
+		} catch (err) {
+			console.error("Error updating auto-watch interval:", err);
+			setError("Network error. Please try again.");
+		}
+	};
+
 	const handleCreateProfile = useCallback(() => {
 		setEditingProfile(null);
 		setProfileDialogOpen(true);
@@ -271,6 +321,77 @@ export function ProfileSettings() {
 							onCheckedChange={handleAutoTranscriptionToggle}
 							disabled={settingsLoading}
 						/>
+					</div>
+				)}
+			</div>
+
+			{/* Data Folder Monitor Settings */}
+			<div className="bg-[var(--bg-main)]/50 border border-[var(--border-subtle)] rounded-[var(--radius-card)] p-4 sm:p-6 shadow-sm">
+				<div className="mb-4">
+					<div className="flex items-center space-x-2 mb-2">
+						<FolderSearch className="h-5 w-5 text-[var(--brand-solid)]" />
+						<h3 className="text-lg font-medium text-[var(--text-primary)]">Data Folder Monitor</h3>
+					</div>
+					<p className="text-sm text-[var(--text-secondary)]">
+						Automatically detect new audio files placed in the data folder and queue them for transcription.
+					</p>
+				</div>
+
+				{settingsLoading ? (
+					<div className="flex items-center space-x-2 py-4">
+						<div className="animate-spin rounded-full h-4 w-4 border-b-2 border-carbon-600 dark:border-carbon-400"></div>
+						<span className="text-sm text-carbon-600 dark:text-carbon-400">Loading settings...</span>
+					</div>
+				) : (
+					<div className="space-y-4">
+						<div className="flex items-center justify-between py-2">
+							<div>
+								<Label htmlFor="auto-watch-upload-dir" className="text-[var(--text-primary)] font-medium">
+									Monitor data folder for new files
+								</Label>
+								<p className="text-sm text-[var(--text-secondary)] mt-1">
+									When enabled, audio files placed into the server&apos;s data/uploads folder will automatically be discovered and queued for transcription using your default profile.
+								</p>
+							</div>
+							<Switch
+								id="auto-watch-upload-dir"
+								checked={userSettings?.auto_watch_upload_dir_enabled || false}
+								onCheckedChange={handleAutoWatchToggle}
+								disabled={settingsLoading}
+							/>
+						</div>
+
+						<div className="flex items-center gap-4 py-2">
+							<div className="flex-1">
+								<Label htmlFor="auto-watch-interval" className="text-[var(--text-primary)] font-medium">
+									Check frequency (seconds)
+								</Label>
+								<p className="text-sm text-[var(--text-secondary)] mt-1">
+									How often the server checks for new files. Minimum 5s, maximum 3600s.
+								</p>
+							</div>
+							<Input
+								id="auto-watch-interval"
+								type="number"
+								min={5}
+								max={3600}
+								className="w-28 bg-[var(--bg-main)] border-[var(--border-subtle)] text-[var(--text-primary)]"
+								value={userSettings?.auto_watch_interval_seconds ?? 30}
+							onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
+								const v = parseInt(e.target.value, 10);
+								if (!Number.isNaN(v)) {
+									setUserSettings((prev: UserSettings | null) => prev ? { ...prev, auto_watch_interval_seconds: v } : prev);
+								}
+							}}
+							onBlur={(e: React.FocusEvent<HTMLInputElement>) => {
+								const v = parseInt(e.target.value, 10);
+								if (!Number.isNaN(v) && v >= 5 && v <= 3600) {
+									handleWatchIntervalChange(v);
+								}
+							}}
+								disabled={settingsLoading || !userSettings?.auto_watch_upload_dir_enabled}
+							/>
+						</div>
 					</div>
 				)}
 			</div>

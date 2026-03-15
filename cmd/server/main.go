@@ -140,6 +140,11 @@ func main() {
 	taskQueue.Start()
 	defer taskQueue.Stop()
 
+	// Start upload directory watcher (respects per-user settings)
+	watcherCtx, watcherCancel := context.WithCancel(context.Background())
+	defer watcherCancel()
+	queue.StartUploadDirWatcher(watcherCtx, cfg, userRepo, profileRepo, jobRepo, taskQueue)
+
 	// Initialize multi-track processor
 	multiTrackProcessor := processing.NewMultiTrackProcessor(database.DB, jobRepo)
 
