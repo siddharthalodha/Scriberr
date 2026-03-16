@@ -254,8 +254,8 @@ func (u *UnifiedTranscriptionService) processSingleTrackJob(ctx context.Context,
 		}
 	}
 
-	// Apply preprocessing
-	preprocessedInput, err = u.pipeline.ProcessAudio(ctx, audioInput, capabilities)
+	// Apply preprocessing (write converted files to tempDir, not the upload folder)
+	preprocessedInput, err = u.pipeline.ProcessAudio(ctx, audioInput, capabilities, u.tempDirectory)
 	if err != nil {
 		logger.Warn("Audio preprocessing failed, using original", "error", err)
 		preprocessedInput = audioInput

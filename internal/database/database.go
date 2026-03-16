@@ -80,6 +80,12 @@ func Initialize(dbPath string) error {
 		return fmt.Errorf("failed to auto migrate: %v", err)
 	}
 
+	// Backfill defaults for columns added to existing users rows.
+	// AutoMigrate adds the columns but SQLite does not apply defaults to
+	// pre-existing rows, so we fix them up here. These are idempotent.
+	DB.Exec("UPDATE users SET auto_watch_upload_dir_enabled = 0 WHERE auto_watch_upload_dir_enabled IS NULL")
+	DB.Exec("UPDATE users SET auto_watch_interval_seconds = 30 WHERE auto_watch_interval_seconds IS NULL OR auto_watch_interval_seconds = 0")
+
 	// Cleanup duplicate speaker mappings before creating unique index (for backward compatibility)
 	// Keep the latest mapping for each (job_id, original_speaker) pair
 	cleanupQuery := `

@@ -107,6 +107,11 @@ func scanUploadDir(
 		if !isWatchableAudioFile(filepath.Ext(path)) {
 			return nil
 		}
+		// Skip temporary conversion artifacts (e.g. foo_converted.wav)
+		baseName := strings.TrimSuffix(filepath.Base(path), filepath.Ext(path))
+		if strings.HasSuffix(baseName, "_converted") {
+			return nil
+		}
 
 		exists, err := jobRepo.ExistsByAudioPath(ctx, path)
 		if err != nil || exists {

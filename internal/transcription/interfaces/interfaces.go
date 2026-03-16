@@ -212,8 +212,10 @@ type ProcessingPipeline interface {
 
 // Preprocessor handles audio preprocessing before model execution
 type Preprocessor interface {
-	// Process transforms the audio input
-	Process(ctx context.Context, input AudioInput) (AudioInput, error)
+	// Process transforms the audio input. tempDir is used to store any
+	// intermediate files (e.g. format conversions) so they don't pollute
+	// the source directory.
+	Process(ctx context.Context, input AudioInput, tempDir string) (AudioInput, error)
 
 	// AppliesTo determines if this preprocessor should be used for the given model
 	AppliesTo(capabilities ModelCapabilities) bool

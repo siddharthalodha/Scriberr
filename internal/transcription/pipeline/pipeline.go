@@ -42,14 +42,16 @@ func (p *ProcessingPipeline) RegisterPostprocessor(postprocessor interfaces.Post
 	p.postprocessors = append(p.postprocessors, postprocessor)
 }
 
-// ProcessAudio applies all applicable preprocessors to the audio input
-func (p *ProcessingPipeline) ProcessAudio(ctx context.Context, input interfaces.AudioInput, capabilities interfaces.ModelCapabilities) (interfaces.AudioInput, error) {
+// ProcessAudio applies all applicable preprocessors to the audio input.
+// tempDir is where intermediate files (e.g. format conversions) are written
+// so they don't end up in the source directory.
+func (p *ProcessingPipeline) ProcessAudio(ctx context.Context, input interfaces.AudioInput, capabilities interfaces.ModelCapabilities, tempDir string) (interfaces.AudioInput, error) {
 	currentInput := input
 
 	for _, preprocessor := range p.preprocessors {
 		if preprocessor.AppliesTo(capabilities) {
 			logger.Info("Applying preprocessor", "type", fmt.Sprintf("%T", preprocessor))
-			processedInput, err := preprocessor.Process(ctx, currentInput)
+			processedInput, err := preprocessor.Process(ctx, currentInput, tempDir)
 			if err != nil {
 				logger.Warn("Preprocessor failed, continuing with original input", "error", err)
 				continue
@@ -75,8 +77,9 @@ func (a *AudioFormatPreprocessor) GetRequiredFormats() []string {
 	return []string{"wav"}
 }
 
-// Process converts audio to the required format
-func (a *AudioFormatPreprocessor) Process(ctx context.Context, input interfaces.AudioInput) (interfaces.AudioInput, error) {
+// Process converts audio to the required format. Converted files are written
+// to tempDir (when provided) so they don't pollute the source directory.
+func (a *AudioFormatPreprocessor) Process(ctx context.Context, input interfaces.AudioInput, tempDir string) (interfaces.AudioInput, error) {
 	// Check if conversion is needed
 	requiredFormat := "wav"
 	requiredSampleRate := 16000
@@ -97,8 +100,21 @@ func (a *AudioFormatPreprocessor) Process(ctx context.Context, input interfaces.
 		"from_channels", input.Channels,
 		"to_channels", requiredChannels)
 
-	// Create output path
-	outputPath := strings.TrimSuffix(input.FilePath, filepath.Ext(input.FilePath)) + "_converted.wav"
+	// Build the converted filename from the original basename
+	baseName := strings.TrimSuffix(filepath.Base(input.FilePath), filepath.Ext(input.FilePath)) + "_converted.wav"
+
+	// Write into tempDir when available; fall back to the source directory
+	var outputPath string
+	if tempDir != "" {
+		if err := os.MkdirAll(tempDir, 0755); err != nil {
+			logger.Warn("Failed to create temp dir for conversion, using source dir", "error", err)
+			outputPath = filepath.Join(filepath.Dir(input.FilePath), baseName)
+		} else {
+			outputPath = filepath.Join(tempDir, baseName)
+		}
+	} else {
+		outputPath = filepath.Join(filepath.Dir(input.FilePath), baseName)
+	}
 
 	// Build FFmpeg command
 	args := []string{
@@ -157,7 +173,7 @@ func (v *VoiceActivityDetectionPreprocessor) GetRequiredFormats() []string {
 }
 
 // Process applies voice activity detection preprocessing
-func (v *VoiceActivityDetectionPreprocessor) Process(ctx context.Context, input interfaces.AudioInput) (interfaces.AudioInput, error) {
+func (v *VoiceActivityDetectionPreprocessor) Process(ctx context.Context, input interfaces.AudioInput, tempDir string) (interfaces.AudioInput, error) {
 	// For now, this is a placeholder
 	// In a real implementation, this would apply VAD to remove silence
 	logger.Info("VAD preprocessing (placeholder)", "file", input.FilePath)
@@ -179,7 +195,7 @@ func (n *NoiseReductionPreprocessor) GetRequiredFormats() []string {
 }
 
 // Process applies noise reduction preprocessing
-func (n *NoiseReductionPreprocessor) Process(ctx context.Context, input interfaces.AudioInput) (interfaces.AudioInput, error) {
+func (n *NoiseReductionPreprocessor) Process(ctx context.Context, input interfaces.AudioInput, tempDir string) (interfaces.AudioInput, error) {
 	// For now, this is a placeholder
 	// In a real implementation, this would apply noise reduction using FFmpeg or other tools
 	logger.Info("Noise reduction preprocessing (placeholder)", "file", input.FilePath)

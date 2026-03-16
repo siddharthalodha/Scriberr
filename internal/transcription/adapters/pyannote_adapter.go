@@ -240,6 +240,9 @@ func (p *PyAnnoteAdapter) setupPyAnnoteEnvironment() error {
 		return fmt.Errorf("failed to write pyproject.toml: %w", err)
 	}
 
+	// Remove stale lock file so uv re-resolves when dependencies change
+	_ = os.Remove(filepath.Join(p.envPath, "uv.lock"))
+
 	// Run uv sync
 	logger.Info("Installing PyAnnote dependencies")
 	cmd := exec.Command("uv", "sync", "--native-tls")
